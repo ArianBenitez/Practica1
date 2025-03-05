@@ -9,11 +9,12 @@ COLOR_MOTA = (255, 255, 255)
 
 # Asigna a cada zona una posición en la ventana
 zona_offsets = {
-    'Zona 1' : (30, 0),   #Ancho = 500, Alto = 150
-    'Zona 2' : (40, 150),   #Ancho = 480, Alto = 101
-    'Zona 3' : (30, 210),   #Ancho = 309, Alto = 480
-    'Zona 4' : (470, 210),   #Ancho = 90, Alto = 220
+    'Zona 1' : (50, 30),   #Ancho = 500, Alto = 150
+    'Zona 2' : (50, 180),   #Ancho = 480, Alto = 101
+    'Zona 3' : (240, 180),   #Ancho = 309, Alto = 480
+    'Zona 4' : (151, 440),   #Ancho = 90, Alto = 220
 }
+
 
 def start_visualizacion(zonas, escala=1):
     """

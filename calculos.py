@@ -10,7 +10,7 @@ def main():
     # Definición de las zonas con sus dimensiones (largo, ancho)
     zonas = {
         'Zona 1': (500, 150),
-        'Zona 2': (480, 101),
+        'Zona 2': (101, 480),
         'Zona 3': (309, 480),
         'Zona 4': (90, 220)
     }
