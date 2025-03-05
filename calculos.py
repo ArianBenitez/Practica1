@@ -1,5 +1,5 @@
 import concurrent.futures
-from visual import start_visualizacion
+from visual_01 import start_visualizacion
 
 
 def calcular_area(largo, ancho):

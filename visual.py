@@ -1,3 +1,4 @@
+'''
 import pygame
 import random
 
@@ -73,7 +74,7 @@ def start_visualizacion(zonas, escala=1):
             if event.type == pygame.QUIT:
                 running = False
         
-        # Controles de Pac-Man con flechas (opcional)
+        # Controles de la roomBA con flechas
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
             roomBA_x -= roomBA_vel
@@ -100,7 +101,7 @@ def start_visualizacion(zonas, escala=1):
                 width=2 
             )
         
-        # Dibujar Pac-Man (un círculo amarillo)
+        # Dibujar roomBA
         pacman_radius = 10
         pygame.draw.circle(screen, COLOR_ROOMBA, (roomBA_x, roomBA_y), roomBA_radius)
         
@@ -132,3 +133,4 @@ def start_visualizacion(zonas, escala=1):
         clock.tick(30)
     
     pygame.quit()
+'''
