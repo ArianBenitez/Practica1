@@ -24,9 +24,6 @@ def main():
     5. Muestra los resultados en consola.
     """
 
-    # Diccionario para almacenar el area calculada de cada zona
-    areas = {}
-
     zonas = {
         'Zona 1': (500, 150),
         'Zona 2': (480, 101),
@@ -37,15 +34,19 @@ def main():
     # Tasa de limpieza en cm²/segundo (fija)
     tasa_limpeza = 1000  # cm²/s
     
+    # Diccionario para almacenar el area calculada de cada zona
+    areas = {}
+
     # Usamos ThreadPoolExecutor para lanzar hilos concurrentes
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future_to_zona = {
-            executor.submit(calcular_area, l, a): z
-            for z, (l, a) in zonas.items()
+            executor.submit(calcular_area, largo, ancho): zona
+            for zona, (largo, ancho) in zonas.items()
         }
         
         # Recolectamos los resultados a medida que se completan
         for future in concurrent.futures.as_completed(future_to_zona):
+            zona = future_to_zona[future]
             try:
                 area = future.result()
             except Exception as exc:
