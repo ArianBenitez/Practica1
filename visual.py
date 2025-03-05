@@ -4,7 +4,7 @@ import random
 # Colores (R, G, B)
 COLOR_FONDO = (30, 30, 30)
 COLOR_ZONA = (100, 100, 200)
-COLOR_PACMAN = (255, 255, 0)
+COLOR_ROOMBA = (255, 255, 0)
 COLOR_MOTA = (255, 255, 255)
 
 # Asigna a cada zona una posición en la ventana
@@ -86,43 +86,40 @@ def start_visualizacion(zonas, escala=1):
         # Limpiar la pantalla
         screen.fill(COLOR_FONDO)
         
-        # Dibujar zonas (ejemplo simple: un único rectángulo)
-        # Realmente deberías dibujar cada zona con sus offsets y tamaños.
+        # Dibujar cada zona en su posición.
         for nombre_zona, (largo, ancho) in zonas.items():
-            offset_x, offset_y = (50, 50)  # Igual que arriba
             px_largo = int(largo * escala)
             px_ancho = int(ancho * escala)
+            offset_x, offset_y = zona_offsets[nombre_zona]
+
             pygame.draw.rect(
                 screen, 
                 COLOR_ZONA, 
                 (offset_x, offset_y, px_largo, px_ancho),
-                width=2  # Solo borde, si quieres relleno usa 0
+                width=2 
             )
         
         # Dibujar Pac-Man (un círculo amarillo)
         pacman_radius = 10
-        pygame.draw.circle(screen, COLOR_PACMAN, (roomBA_x, roomBA_y), roomBA_radius)
+        pygame.draw.circle(screen, COLOR_ROOMBA, (roomBA_x, roomBA_y), roomBA_radius)
         
         # Dibujar motas y detectar colisiones
         nuevas_motas = []
         for (mx, my) in motas:
-            # Calcular distancia para ver si Pac-Man "come" la mota
             dist_x = mx - roomBA_x
             dist_y = my - roomBA_y
-            dist_sq = dist_x * dist_x + dist_y * dist_y
+            dist_sq = dist_x**2 + dist_y**2
+
             # Si está muy cerca (colisión), no se vuelve a dibujar la mota
-            if dist_sq < (pacman_radius ** 2):
-                # Pac-Man "come" la mota
+            if dist_sq < roomBA_radius**2:
                 continue
             else:
-                # Mantener la mota
                 nuevas_motas.append((mx, my))
-                # Dibujar la mota
                 pygame.draw.circle(screen, COLOR_MOTA, (mx, my), 2)
         
         motas = nuevas_motas
         
-        # Si no quedan motas, se podría mostrar un mensaje de "Limpieza completada"
+        # Si no quedan motas, mostrar un mensaje de "Limpieza completada"
         if not motas:
             fuente = pygame.font.SysFont(None, 36)
             texto = fuente.render("¡Limpieza completada!", True, (255, 255, 255))
@@ -131,7 +128,6 @@ def start_visualizacion(zonas, escala=1):
         # Actualizar la pantalla
         pygame.display.flip()
         
-        # Controlar FPS (por ejemplo, 30)
         clock.tick(30)
     
     pygame.quit()
