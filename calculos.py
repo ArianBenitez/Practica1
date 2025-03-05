@@ -41,10 +41,14 @@ def main():
     # Calcular la superficie total sumando las áreas parciales
     superficie_total = sum(areas.values())
     # Calcular el tiempo de limpieza
-    tiempo_limpeza = superficie_total / tasa_limpeza
+    tiempo_limpieza = superficie_total / tasa_limpeza
+    # Pasar el tiempo a minutos
+    tiempo_limpieza_min = tiempo_limpieza / 60
     
     print(f"\nSuperficie total a limpiar: {superficie_total} cm²")
-    print(f"Tiempo estimado de limpieza: {tiempo_limpeza:.2f} segundos")
+    print(f"Tiempo estimado de limpieza: {tiempo_limpieza:.2f} segundos")
+    print(f"Tiempo estimado de limpieza en minutos: {tiempo_limpieza_min:.2f} minutos")
+
     
 if __name__ == '__main__':
     main()
