@@ -1,0 +1,152 @@
+import pygame
+import random
+
+# Colores (R, G, B)
+COLOR_FONDO = (30, 30, 30)
+COLOR_ZONA = (100, 100, 200)
+COLOR_ROOMBA = (255, 255, 0)
+COLOR_MOTA = (255, 255, 255)
+
+# Asigna a cada zona una posición en la ventana
+zona_offsets = {
+    'Zona 1': (50, 30),    # Ancho=500, Alto=150
+    'Zona 2': (50, 180),   # Ancho=480, Alto=101
+    'Zona 3': (240, 180),  # Ancho=309, Alto=480
+    'Zona 4': (151, 440),  # Ancho=90,  Alto=220
+}
+
+def puede_moverse(nuevo_x, nuevo_y, zone_rects, roomBA_radius):
+    """
+    Devuelve True si la posición (nuevo_x, nuevo_y) del robot está
+    dentro de al menos uno de los rectángulos de zona, considerando
+    el radio (roomBA_radius) para no atravesar los bordes.
+    """
+    for (rect_x, rect_y, rect_w, rect_h) in zone_rects:
+        # Verificamos si el centro (nuevo_x, nuevo_y) + su radio cabe dentro del rectángulo
+        if (nuevo_x - roomBA_radius >= rect_x and
+            nuevo_x + roomBA_radius <= rect_x + rect_w and
+            nuevo_y - roomBA_radius >= rect_y and
+            nuevo_y + roomBA_radius <= rect_y + rect_h):
+            return True
+    return False
+
+def start_visualizacion(zonas, escala=1):
+    """
+    Inicia la ventana de pygame y muestra:
+    - Las zonas dibujadas como rectángulos.
+    - El robot aspirador (RoomBA) con colisión para no salir de las zonas.
+    - Motas de polvo distribuidas en cada zona.
+    
+    :param zonas: dict con {'Zona 1': (largo, ancho), ...}
+    :param escala: cuántos píxeles equivalen a 1 cm.
+    """
+    pygame.init()
+    
+    # Tamaño de la ventana (ajusta si lo prefieres a 560×690, etc.)
+    ancho_ventana = 600 * escala
+    alto_ventana = 700 * escala
+    screen = pygame.display.set_mode((ancho_ventana, alto_ventana))
+    pygame.display.set_caption("Robot Aspirador - RoomBA Espacial")
+    
+    clock = pygame.time.Clock()
+    
+    # 1) Crear la lista de rectángulos transitables (uno por cada zona)
+    zone_rects = []
+    for nombre_zona, (largo_cm, ancho_cm) in zonas.items():
+        px_largo = int(largo_cm * escala)
+        px_ancho = int(ancho_cm * escala)
+        offset_x, offset_y = zona_offsets[nombre_zona]
+        zone_rects.append((offset_x, offset_y, px_largo, px_ancho))
+    
+    # 2) Generar motas de polvo
+    motas = []
+    for nombre_zona, (largo_cm, ancho_cm) in zonas.items():
+        px_largo = int(largo_cm * escala)
+        px_ancho = int(ancho_cm * escala)
+        offset_x, offset_y = zona_offsets[nombre_zona]
+        
+        for _ in range(20):  # 20 motas por zona
+            x = random.randint(offset_x, offset_x + px_largo - 1)
+            y = random.randint(offset_y, offset_y + px_ancho - 1)
+            motas.append((x, y))
+    
+    # Datos de RoomBA
+    roomBA_vel = 3
+    roomBA_radius = 10
+
+    # 3) Escoge una zona para colocar el robot inicialmente **dentro** de ella.
+    #    Por ejemplo, lo ubicamos en el centro aproximado de la Zona 3.
+    #    Ajusta según prefieras.
+    initial_zone = 'Zona 3'
+    z_offset_x, z_offset_y = zona_offsets[initial_zone]
+    z_largo, z_ancho = zonas[initial_zone]
+    px_largo = int(z_largo * escala)
+    px_ancho = int(z_ancho * escala)
+
+    # Colocamos el robot en el centro de esa zona
+    roomBA_x = z_offset_x + px_largo // 2
+    roomBA_y = z_offset_y + px_ancho // 2
+
+    # Bucle principal
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+        
+        # 4) Movimiento tentativo (no se aplica hasta comprobar colisión)
+        nuevo_x = roomBA_x
+        nuevo_y = roomBA_y
+        
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            nuevo_x -= roomBA_vel
+        if keys[pygame.K_RIGHT]:
+            nuevo_x += roomBA_vel
+        if keys[pygame.K_UP]:
+            nuevo_y -= roomBA_vel
+        if keys[pygame.K_DOWN]:
+            nuevo_y += roomBA_vel
+        
+        # Verificar si la nueva posición está dentro de alguna zona
+        if puede_moverse(nuevo_x, nuevo_y, zone_rects, roomBA_radius):
+            # Si es válido, actualizamos la posición
+            roomBA_x = nuevo_x
+            roomBA_y = nuevo_y
+        # Si no, ignoramos el movimiento (colisión con pared/espacio vacío)
+        
+        # Limpiar la pantalla
+        screen.fill(COLOR_FONDO)
+        
+        # 5) Dibujar zonas
+        for (rect_x, rect_y, rect_w, rect_h) in zone_rects:
+            pygame.draw.rect(screen, COLOR_ZONA, (rect_x, rect_y, rect_w, rect_h), width=2)
+        
+        # 6) Dibujar RoomBA
+        pygame.draw.circle(screen, COLOR_ROOMBA, (roomBA_x, roomBA_y), roomBA_radius)
+        
+        # 7) Dibujar motas y detectar colisiones con RoomBA
+        nuevas_motas = []
+        for (mx, my) in motas:
+            dist_x = mx - roomBA_x
+            dist_y = my - roomBA_y
+            dist_sq = dist_x**2 + dist_y**2
+            # Si está muy cerca (colisión), se "aspira" la mota
+            if dist_sq < roomBA_radius**2:
+                continue
+            else:
+                nuevas_motas.append((mx, my))
+                pygame.draw.circle(screen, COLOR_MOTA, (mx, my), 2)
+        
+        motas = nuevas_motas
+        
+        # 8) Si no quedan motas, mensaje final
+        if not motas:
+            fuente = pygame.font.SysFont(None, 36)
+            texto = fuente.render("¡Limpieza completada!", True, (255, 255, 255))
+            screen.blit(texto, (50, 10))
+        
+        pygame.display.flip()
+        clock.tick(30)
+    
+    pygame.quit()
