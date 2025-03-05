@@ -1,5 +1,7 @@
 import concurrent.futures
- 
+from visual2 import start_visualizacion
+
+
 def calcular_area(largo, ancho):
     """Calcula el área de una zona multiplicando largo por ancho."""
     return largo * ancho
@@ -49,6 +51,8 @@ def main():
     print(f"Tiempo estimado de limpieza: {tiempo_limpieza:.2f} segundos")
     print(f"Tiempo estimado de limpieza en minutos: {tiempo_limpieza_min:.2f} minutos")
 
+
+    start_visualizacion(zonas, escala=1)
     
 if __name__ == '__main__':
     main()
