@@ -62,7 +62,7 @@ def main():
     tiempo_limpeza_seg = superficie_total / tasa_limpeza
     
     # Conversion a minutos
-    tiempo_limpeza_min = tiempo_limpeza_seg / 60
+    # tiempo_limpeza_min = tiempo_limpeza_seg / 60
     
     # Mostrar los resultados
     print("\n=======================================")
