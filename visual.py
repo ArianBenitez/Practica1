@@ -32,8 +32,8 @@ def start_visualizacion(zonas, escala=1):
     # Aquí asumimos que la dimensión mayor no supera 600~700 px, como ejemplo.
     # Podríamos usar la zona más grande para definir la ventana.
     
-    ancho_ventana = 560 * escala
-    alto_ventana = 690 * escala
+    ancho_ventana = 600 * escala
+    alto_ventana = 700 * escala
     screen = pygame.display.set_mode((ancho_ventana, alto_ventana))
     pygame.display.set_caption("Robot Aspirador - RoomBA Espacial")
     
