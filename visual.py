@@ -1,71 +1,130 @@
 import pygame
 import random
 
-
-# Colores para el fondo y las zonas
+# Colores (R, G, B)
 COLOR_FONDO = (30, 30, 30)
 COLOR_ZONA = (100, 100, 200)
-COLOR_ASPIRADOR = (255, 255, 0)
-COLOR_POLVO = (255, 255, 255)
+COLOR_PACMAN = (255, 255, 0)
+COLOR_MOTA = (255, 255, 255)
 
-def startVisualizacion(zonas, escala = 1):
-    '''
+def start_visualizacion(zonas, escala=1):
+    """
     Inicia la ventana de pygame y muestra:
     - Las zonas dibujadas como rectángulos.
-    - El aspirador
-    - Motas de polvo distribuidas por cada zona
-    '''
-
+    - Un 'Pac-Man' que se mueve.
+    - Motas de polvo distribuidas en cada zona.
+    
+    :param zonas: dict con {'Zona 1': (largo, ancho), ...}
+    :param escala: cuántos píxeles equivalen a 1 cm.
+    """
     pygame.init()
-
-    #Calcular el tamaño total de la ventana
-    ancho_ventana = 600 * escala
-    alto_ventana = 700 * escala
+    
+    # Calcular el tamaño total de la ventana
+    # (Opcional: si tienes un plano general, ajusta a su dimensión)
+    # Aquí asumimos que la dimensión mayor no supera 600~700 px, como ejemplo.
+    # Podríamos usar la zona más grande para definir la ventana.
+    
+    ancho_ventana = 560 * escala
+    alto_ventana = 690 * escala
     screen = pygame.display.set_mode((ancho_ventana, alto_ventana))
-    pygame.display.set_caption("RoomBA Espacial")
-
-    #Reloj que controla FPS
+    pygame.display.set_caption("Robot Aspirador - Pac-Man Espacial")
+    
+    # Reloj para controlar FPS
     clock = pygame.time.Clock()
-
-    #Posición inicial del aspirador
-    roombae_x = ancho_ventana // 2
-    roombae_y = alto_ventana //2
-    roombae_vel = 3
-
-    #Generar motas de polvo en cada zona
+    
+    # Posición inicial de Pac-Man (al centro de la ventana, por ejemplo)
+    pacman_x = ancho_ventana // 2
+    pacman_y = alto_ventana // 2
+    pacman_vel = 3  # Velocidad de movimiento (píxeles por frame)
+    
+    # Generar motas de polvo en cada zona
+    # Para simplicidad, creamos una lista global de motas con (x, y) en píxeles
     motas = []
     for nombre_zona, (largo, ancho) in zonas.items():
-        #Convierto en píxeles
+        # Convertir a píxeles
         px_largo = int(largo * escala)
-        px_ancho = int (ancho * escala)
-
-        offset_x, offset_y = (50, 50)
-
-        for _ in range(20):
+        px_ancho = int(ancho * escala)
+        
+        # (Opcional) decidir la posición de la zona en la ventana
+        # Por ahora, dibujaremos todas las zonas superpuestas en la esquina superior izquierda,
+        # solo para demostrar. En un caso real, cada zona tendría su posición.
+        # Ejemplo: offset_x = random.randint(0, 100), offset_y = random.randint(0, 100) ...
+        offset_x, offset_y = (50, 50)  # Fijo a modo de ejemplo
+        
+        # Crear motas aleatorias dentro de la zona
+        for _ in range(20):  # 20 motas por zona
             x = random.randint(offset_x, offset_x + px_largo - 1)
             y = random.randint(offset_y, offset_y + px_ancho - 1)
             motas.append((x, y))
     
-
-    #Bucle principal
+    # Bucle principal
     running = True
     while running:
-        #Eventos
+        # Manejo de eventos
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-
-        #Control manual del aspirador
+        
+        # Controles de Pac-Man con flechas (opcional)
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
-            roombae_x -= roombae_vel
+            pacman_x -= pacman_vel
         if keys[pygame.K_RIGHT]:
-            roombae_x += roombae_vel
+            pacman_x += pacman_vel
         if keys[pygame.K_UP]:
-            roombae_y -= roombae_vel
+            pacman_y -= pacman_vel
         if keys[pygame.K_DOWN]:
-            roombae_y += roombae_vel
-
-        #Limpiar la pantalla
+            pacman_y += pacman_vel
+        
+        # Limpiar la pantalla
         screen.fill(COLOR_FONDO)
-
+        
+        # Dibujar zonas (ejemplo simple: un único rectángulo)
+        # Realmente deberías dibujar cada zona con sus offsets y tamaños.
+        for nombre_zona, (largo, ancho) in zonas.items():
+            offset_x, offset_y = (50, 50)  # Igual que arriba
+            px_largo = int(largo * escala)
+            px_ancho = int(ancho * escala)
+            pygame.draw.rect(
+                screen, 
+                COLOR_ZONA, 
+                (offset_x, offset_y, px_largo, px_ancho),
+                width=2  # Solo borde, si quieres relleno usa 0
+            )
+        
+        # Dibujar Pac-Man (un círculo amarillo)
+        pacman_radius = 10
+        pygame.draw.circle(screen, COLOR_PACMAN, (pacman_x, pacman_y), pacman_radius)
+        
+        # Dibujar motas y detectar colisiones
+        nuevas_motas = []
+        for (mx, my) in motas:
+            # Calcular distancia para ver si Pac-Man "come" la mota
+            dist_x = mx - pacman_x
+            dist_y = my - pacman_y
+            dist_sq = dist_x * dist_x + dist_y * dist_y
+            # Si está muy cerca (colisión), no se vuelve a dibujar la mota
+            if dist_sq < (pacman_radius ** 2):
+                # Pac-Man "come" la mota
+                continue
+            else:
+                # Mantener la mota
+                nuevas_motas.append((mx, my))
+                # Dibujar la mota
+                pygame.draw.circle(screen, COLOR_MOTA, (mx, my), 2)
+        
+        motas = nuevas_motas
+        
+        # Si no quedan motas, se podría mostrar un mensaje de "Limpieza completada"
+        if not motas:
+            fuente = pygame.font.SysFont(None, 36)
+            texto = fuente.render("¡Limpieza completada!", True, (255, 255, 255))
+            screen.blit(texto, (50, 10))
+        
+        # Actualizar la pantalla
+        pygame.display.flip()
+        
+        # Controlar FPS (por ejemplo, 30)
+        clock.tick(30)
+    
+    pygame.quit()
