@@ -45,7 +45,7 @@ def circle_rect_collision(cx, cy, radius, rx, ry, rw, rh):
     return dist_sq < (radius**2)
 
 def dentro_de_ventana(cx, cy, radius):
-    """Devuelve True si el círculo (cx, cy, radius) se mantiene dentro de [0,0,WINDOW_WIDTH,WINDOW_HEIGHT]."""
+    """Devuelve True si el círculo (cx, cy, radius) está dentro de [0,0, WINDOW_WIDTH, WINDOW_HEIGHT]."""
     if cx - radius < 0 or cx + radius > WINDOW_WIDTH:
         return False
     if cy - radius < 0 or cy + radius > WINDOW_HEIGHT:
@@ -115,14 +115,12 @@ def mover_enemigos(enemigos, enemy_radius):
             e['x'] = old_x
             e['y'] = old_y
             # Invertir la velocidad (rebote)
-            # Puedes mejorarlo si quieres un rebote más real
             e['vx'] *= -1
             e['vy'] *= -1
 
 def colision_robot_enemigos(roomBA_x, roomBA_y, roomBA_radius, enemigos, enemy_radius):
     """
     Devuelve True si el robot colisiona con AL MENOS un enemigo (círculo-círculo).
-    Esto hace que el robot pierda solo 1 de vida por frame, aunque colisione con varios.
     """
     for e in enemigos:
         dx = e['x'] - roomBA_x
@@ -137,7 +135,7 @@ def start_visualizacion(zonas, escala=1, tiempo_limite=30):
     """
     - Hueco NO transitable para robot y enemigos.
     - Cuenta atrás.
-    - Robot con vida (pierde solo 1 por frame si colisiona con enemigos).
+    - Robot con vida (pierde solo 1 por colisión 'nueva' con enemigos).
     - Game Over si vida=0 o se acaba el tiempo. Reinicio tras 2s.
     """
     pygame.init()
@@ -181,6 +179,9 @@ def start_visualizacion(zonas, escala=1, tiempo_limite=30):
     # Enemigos
     enemy_radius = 10
     enemigos = crear_enemigos(num_enemigos=3)
+    
+    # Para controlar la colisión 'nueva' con enemigos
+    robot_colliding = False  # Indica si el robot estaba en colisión en el frame anterior
     
     # Game Over
     game_over = False
@@ -235,12 +236,19 @@ def start_visualizacion(zonas, escala=1, tiempo_limite=30):
         if not game_over:
             mover_enemigos(enemigos, enemy_radius)
         
-        # Colisión robot-enemigos (1 de vida por frame si hay colisión)
+        # Colisión robot-enemigos
+        # Si colisiona, restamos vida SOLO si es una colisión 'nueva'
+        colliding_now = colision_robot_enemigos(roomBA_x, roomBA_y, roomBA_radius, enemigos, enemy_radius)
+        
         if not game_over:
-            if colision_robot_enemigos(roomBA_x, roomBA_y, roomBA_radius, enemigos, enemy_radius):
+            if colliding_now and not robot_colliding:
+                # El robot acaba de entrar en colisión
                 robot_life -= 1
                 if robot_life < 0:
                     robot_life = 0
+        
+        # Actualizar estado de colisión
+        robot_colliding = colliding_now
         
         # RENDER
         screen.fill(COLOR_FONDO)
@@ -318,3 +326,4 @@ def start_visualizacion(zonas, escala=1, tiempo_limite=30):
         pygame.display.flip()
     
     pygame.quit()
+
