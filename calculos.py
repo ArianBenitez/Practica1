@@ -1,5 +1,5 @@
 import concurrent.futures
-from visual_01 import start_visualizacion
+from visual import start_visualizacion
 
 
 def calcular_area(largo, ancho):
@@ -52,7 +52,7 @@ def main():
     print(f"Tiempo estimado de limpieza en minutos: {tiempo_limpieza_min:.2f} minutos")
 
 
-    start_visualizacion(zonas, escala=1)
+    start_visualizacion(zonas, escala=1, tiempo_limite=tiempo_limpieza)
     
 if __name__ == '__main__':
     main()
