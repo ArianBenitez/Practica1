@@ -29,8 +29,6 @@ def run_game(shared_mites, lock):
                     # dibujar un puntito blanco
                     pygame.draw.circle(screen, (255,255,255), (mite["x"], mite["y"]), 3)
 
-        # (Podrías también leer la posición de la roomba si fuera compartida en roomba_thread)
-        # ...
 
         pygame.display.flip()
 
