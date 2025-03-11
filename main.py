@@ -1,56 +1,68 @@
 # main.py
 import threading
-import roomba
 import areas
+import roomba
 import spawn_mites
-import time
+import game
 
 def main():
     """
-    - Lanza hilos de:
-       1) Cálculo de áreas
-       2) Roomba (lógica de movimiento)
-       3) Aparición de ácaros (mites)
-    - Corre el bucle de Pygame en el hilo principal.
+    Lanza hilos para:
+      - Cálculo de áreas (AreaThread)
+      - Lógica del robot con BFS (RoombaThread)
+      - Aparición concurrente de ácaros (MitesThread)
+    Y corre Pygame en el hilo principal para dibujar
+    las zonas, el hueco, el robot y los ácaros desde el inicio.
     """
-    # 1) Crear contenedores de datos compartidos
+
+    # Zonas con sus dimensiones
     zonas = {
         'Zona 1': (500, 150),
         'Zona 2': (101, 480),
         'Zona 3': (309, 480),
         'Zona 4': (90, 220)
     }
-    areas_result = {}  # dict para guardar resultado del cálculo de áreas
 
-    shared_mites = []  # lista compartida de ácaros
-    shared_mites_lock = threading.Lock()  # para sincronizar acceso a la lista
+    # Diccionario para guardar la superficie total calculada
+    areas_result = {}
 
-    # 2) Crear los hilos
+    # Estado del robot (posición, radio, etc.)
+    roomba_state = {
+        'x': 100,   # Posición inicial del robot
+        'y': 100,
+        'radius': 10,
+        'stop': False
+    }
+
+    # Lista de ácaros compartida
+    shared_mites = []
+    shared_mites_lock = threading.Lock()
+
+    # Crear hilos
     area_thread = areas.AreaThread(zonas, areas_result)
-    roomba_thread = roomba.RoombaThread()
-    mites_thread = spawn_mites.MitesThread(shared_mites, shared_mites_lock)
+    roomba_thread = roomba.RoombaThread(roomba_state, shared_mites, shared_mites_lock)
+    # Este hilo generará ácaros de forma indefinida en las zonas
+    mites_thread = spawn_mites.MitesThread(zonas, shared_mites, shared_mites_lock)
 
-    # 3) Iniciar los hilos
+    # Iniciar hilos
     area_thread.start()
     roomba_thread.start()
     mites_thread.start()
 
-    # 4) Correr Pygame en este mismo hilo principal
-    #    (Suponiendo que tienes una función run_game que use shared_mites)
-    import game  # si deseas separar la lógica del juego
-    game.run_game(shared_mites, shared_mites_lock)
+    # Correr el juego en el hilo principal
+    game.run_game(zonas, areas_result, roomba_state, shared_mites, shared_mites_lock)
 
-    # 5) Una vez sales del juego, puedes indicar a los hilos que paren
+    # Al salir del juego, detener los hilos
     area_thread.stop()
     roomba_thread.stop()
     mites_thread.stop()
 
-    # 6) Esperar a que finalicen
+    # Esperar a que finalicen
     area_thread.join()
     roomba_thread.join()
     mites_thread.join()
 
-    print("Todos los hilos han finalizado. Saliendo del programa.")
+    print("Todos los hilos finalizados. Saliendo...")
 
 if __name__ == "__main__":
     main()
