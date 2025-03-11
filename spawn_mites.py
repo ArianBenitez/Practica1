@@ -16,7 +16,7 @@ class MitesThread(threading.Thread):
         self.lock = lock
         self._stop_event = threading.Event()
 
-        # Offsets para cada zona (posiciones fijas)
+        # Offsets para cada zona
         self.zona_offsets = {
             'Zona 1': (50, 30),
             'Zona 2': (50, 180),
@@ -26,18 +26,16 @@ class MitesThread(threading.Thread):
 
     def run(self):
         """
-        Bucle infinito que, cada 1-3 segundos, genera un ácaro
+        Bucle infinito que, cada 0.5-1.5 segundos, genera un ácaro
         en una zona aleatoria, en una posición aleatoria.
         """
         while not self._stop_event.is_set():
-            time.sleep(random.uniform(1.0, 3.0))
+            time.sleep(random.uniform(0.5, 1.5))
 
-            # Escoger una zona aleatoria
             zona_key = random.choice(list(self.zonas.keys()))
             ancho, alto = self.zonas[zona_key]
             ox, oy = self.zona_offsets[zona_key]
 
-            # Generar ácaro en esa zona
             x = random.randint(ox, ox + ancho - 1)
             y = random.randint(oy, oy + alto - 1)
             mite = {

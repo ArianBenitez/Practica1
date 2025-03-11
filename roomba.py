@@ -19,9 +19,34 @@ class RoombaThread(threading.Thread):
         self.current_path = []
         self.target_mite = None
 
+        self.cleaning_started = False   # Indica si hemos empezado a limpiar
+        self.start_time = None         # Momento en que empieza a limpiar
+        self.end_time = None           # Momento en que termina (cuando no queden ácaros)
+
     def run(self):
         while not self._stop_event.is_set():
-            # Si no tenemos objetivo, buscar el ácaro más cercano
+            # Si no hemos iniciado la limpieza y hay al menos un ácaro,
+            # marcamos el inicio (start_time)
+            if not self.cleaning_started:
+                if self.there_are_mites():
+                    self.cleaning_started = True
+                    self.start_time = time.time()
+                    print("[RoombaThread] Empieza la limpieza...")
+
+            # Si no hay ácaros activos, puede que hayamos terminado
+            if self.cleaning_started and not self.there_are_mites():
+                # Si no teníamos end_time, lo fijamos
+                if not self.end_time:
+                    self.end_time = time.time()
+                    total_time = self.end_time - self.start_time
+                    self.state['clean_time'] = total_time
+                    print(f"[RoombaThread] ¡Limpieza terminada! Tiempo total: {total_time:.2f} s")
+
+                # Ya no hay nada que hacer; podemos dormir un rato
+                time.sleep(1)
+                continue
+
+            # Lógica normal de BFS para recoger ácaros
             if not self.target_mite:
                 mite = self.get_closest_mite()
                 if mite:
@@ -46,15 +71,22 @@ class RoombaThread(threading.Thread):
                 # No hay camino => descartar este ácaro
                 self.target_mite = None
 
-            time.sleep(0.05)
+            time.sleep(0.1)  # velocidad del robot (más lento)
 
     def stop(self):
         self._stop_event.set()
 
+    def there_are_mites(self):
+        """
+        Retorna True si hay al menos un ácaro activo.
+        """
+        with self.lock:
+            for m in self.shared_mites:
+                if m.get('active', True):
+                    return True
+        return False
+
     def get_closest_mite(self):
-        """
-        Devuelve el ácaro activo más cercano al robot, o None si no hay.
-        """
         rx, ry = self.state['x'], self.state['y']
         closest = None
         min_dist = float('inf')
@@ -70,10 +102,6 @@ class RoombaThread(threading.Thread):
         return closest
 
     def check_mite_collected(self, mite):
-        """
-        Verifica si la posición del robot está lo bastante cerca
-        del ácaro para considerarlo recogido.
-        """
         rx, ry = self.state['x'], self.state['y']
         dx = mite['x'] - rx
         dy = mite['y'] - ry
@@ -81,10 +109,6 @@ class RoombaThread(threading.Thread):
         return dist_sq < (self.state['radius'] + 3)**2
 
     def compute_path_to(self, tx, ty):
-        """
-        BFS en una rejilla de 10 px para evitar el hueco.
-        Devuelve lista de (x, y).
-        """
         start = (self.snap(self.state['x']), self.snap(self.state['y']))
         goal = (self.snap(tx), self.snap(ty))
 
@@ -124,7 +148,7 @@ class RoombaThread(threading.Thread):
         closest_y = max(hy, min(y, hy+hh))
         dist_x = x - closest_x
         dist_y = y - closest_y
-        dist_sq = dist_x*dist_x + dist_y*dist_y
+        dist_sq = dist_x**2 + dist_y**2
         return dist_sq < (r*r)
 
     def build_path(self, parent, start, goal):

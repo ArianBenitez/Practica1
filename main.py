@@ -27,11 +27,13 @@ def main():
     areas_result = {}
 
     # Estado del robot (posición, radio, etc.)
+    # Agregamos un campo 'clean_time' inicializado a None
     roomba_state = {
-        'x': 100,   # Posición inicial del robot
+        'x': 100,    # Posición inicial del robot
         'y': 100,
         'radius': 10,
-        'stop': False
+        'stop': False,
+        'clean_time': None  # Guardaremos aquí el tiempo de limpieza final
     }
 
     # Lista de ácaros compartida
@@ -41,7 +43,7 @@ def main():
     # Crear hilos
     area_thread = areas.AreaThread(zonas, areas_result)
     roomba_thread = roomba.RoombaThread(roomba_state, shared_mites, shared_mites_lock)
-    # Este hilo generará ácaros de forma indefinida en las zonas
+    # Este hilo generará ácaros indefinidamente (o hasta que lo detengas)
     mites_thread = spawn_mites.MitesThread(zonas, shared_mites, shared_mites_lock)
 
     # Iniciar hilos

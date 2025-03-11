@@ -1,18 +1,9 @@
 # game.py
 import pygame
 
-# Hueco en la posición real
 HUECO_RECT = (151, 180, 89, 260)
 
 def run_game(zonas, areas_result, roomba_state, shared_mites, shared_mites_lock):
-    """
-    Bucle principal de Pygame:
-      - Dibuja las zonas con sus offsets
-      - Hueco en rojo
-      - Robot
-      - Ácaros (que aparecen concurrentemente)
-      - Superficie total
-    """
     pygame.init()
     screen = pygame.display.set_mode((600, 700))
     pygame.display.set_caption("Robot Aspirador - RoomBA Espacial")
@@ -64,9 +55,17 @@ def run_game(zonas, areas_result, roomba_state, shared_mites, shared_mites_lock)
 
         # 5) Mostrar superficie total
         sup_total = areas_result.get('superficie_total', 0)
-        texto = f"Superficie: {sup_total} cm²"
-        render_texto = fuente.render(texto, True, (255, 255, 255))
-        screen.blit(render_texto, (10, 10))
+        texto_area = f"Superficie: {sup_total} cm²"
+        render_texto_area = fuente.render(texto_area, True, (255, 255, 255))
+        screen.blit(render_texto_area, (10, 10))
+
+        # 6) Mostrar tiempo estimado
+        tiempo_est_s = areas_result.get('tiempo_est_s', None)
+        tiempo_est_m = areas_result.get('tiempo_est_m', None)
+        if tiempo_est_s is not None and tiempo_est_m is not None:
+            texto_tiempo = f"Tiempo teórico: {tiempo_est_s:.2f} s ({tiempo_est_m:.2f} min)"
+            render_texto_tiempo = fuente.render(texto_tiempo, True, (255, 255, 255))
+            screen.blit(render_texto_tiempo, (300, 10))
 
         pygame.display.flip()
 
