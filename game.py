@@ -4,7 +4,9 @@ import os, sys
 WINDOW_WIDTH = 600
 WINDOW_HEIGHT = 800
 
+# Dimensiones y posición del hueco
 HUECO_RECT = (151, 280, 89, 260)
+# Barrera que engloba las zonas
 BARRERA = (50, 130, 550, 760)
 
 def run_game(
@@ -22,10 +24,22 @@ def run_game(
 
     fuente = pygame.font.SysFont(None, 24)
 
-    # Cargar sprite
+    # ========== CARGA DE SPRITES ==========
+    # 1) Robot
     robot_sprite = pygame.image.load("GreenRobotSprite.png").convert_alpha()
     robot_sprite = pygame.transform.scale(robot_sprite, (100, 64))
 
+    # 2) Hueco (espacio)
+    hueco_image = pygame.image.load("Space1.png").convert_alpha()
+    hueco_image = pygame.transform.scale(hueco_image, (HUECO_RECT[2], HUECO_RECT[3]))  
+    # (width=89, height=260) => se ajusta exactamente al hueco
+
+    # 3) Enemigos (virus rojos que quitan vidas)
+    enemy_sprite = pygame.image.load("VirusRojo.png").convert_alpha()
+    enemy_sprite = pygame.transform.scale(enemy_sprite, (48, 48))  
+    # Ajusta si quieres otro tamaño
+
+    # Offsets de cada zona
     zona_offsets = {
         'Zona 1': (50, 130),
         'Zona 2': (50, 280),
@@ -47,15 +61,13 @@ def run_game(
             if roomba_state.get('game_over', False):
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_x, mouse_y = event.pos
-                    # Botón (x=300..500, y=400..450)
-                    if 190 <= mouse_x <= 500 and 400 <= mouse_y <= 450:
+                    # Botón (x=190..390, y=400..450)
+                    if 190 <= mouse_x <= 390 and 400 <= mouse_y <= 450:
                         restart_program()
 
-        # Checar si game_over => dibujar la pantalla de Game Over
+        # Si game_over => pantalla de Game Over
         if roomba_state.get('game_over', False) or roomba_state['vidas'] <= 0:
-            # Dibujar fondo
             screen.fill((211, 211, 211))  # gris claro
-            # Mensaje
             game_over_text = fuente.render("¡GAME OVER! Te has quedado sin vidas.", True, (255, 0, 0))
             screen.blit(game_over_text, (150, 300))
 
@@ -66,10 +78,10 @@ def run_game(
             screen.blit(texto_btn, (boton_rect.x + 60, boton_rect.y + 15))
 
             pygame.display.flip()
-            continue  # No dibujamos el resto de la escena
+            continue
 
         # =========================
-        # MODO MANUAL
+        # CONTROL MANUAL
         # =========================
         if control_mode == 'manual':
             keys = pygame.key.get_pressed()
@@ -95,18 +107,19 @@ def run_game(
             check_virus_collisions(roomba_state, shared_mites, mites_lock, radiation_state)
             check_enemy_collisions(roomba_state, shared_enemies, enemies_lock)
 
-        # DIBUJAR ESCENA
+        # ========== DIBUJAR ESCENA ==========
         screen.fill((211, 211, 211))  # Gris claro
 
-        # Zonas
+        # Zonas (rectángulos)
         for nombre_zona, (ancho, alto) in zonas.items():
             ox, oy = zona_offsets[nombre_zona]
             pygame.draw.rect(screen, (100, 100, 200), (ox, oy, ancho, alto), width=2)
 
-        # Hueco
-        pygame.draw.rect(screen, (200, 50, 50), HUECO_RECT, width=0)
+        # Hueco => imagen "Space.png"
+        hx, hy, hw, hh = HUECO_RECT
+        screen.blit(hueco_image, (hx, hy))
 
-        # Robot sprite
+        # Robot => "GreenRobotSprite.png"
         rx = roomba_state.get('x', 0)
         ry = roomba_state.get('y', 0)
         sprite_w = robot_sprite.get_width()
@@ -114,20 +127,22 @@ def run_game(
         robot_pos = (rx - sprite_w//2, ry - sprite_h//2)
         screen.blit(robot_sprite, robot_pos)
 
-        # Virus
+        # Virus (motas blancas / verdes)
         with mites_lock:
             for virus in shared_mites:
                 if virus.get('active', True):
                     color = (0,255,0) if virus.get('color') == 'green' else (255,255,255)
                     pygame.draw.circle(screen, color, (virus['x'], virus['y']), 3)
 
-        # Enemigos (rojos)
+        # Enemigos => "VirusRojo.png"
         with enemies_lock:
             for enemy in shared_enemies:
                 if enemy.get('active', True):
-                    pygame.draw.circle(screen, (255, 0, 0), (enemy['x'], enemy['y']), 5)
+                    ex, ey = enemy['x'], enemy['y']
+                    ew, eh = enemy_sprite.get_width(), enemy_sprite.get_height()
+                    screen.blit(enemy_sprite, (ex - ew//2, ey - eh//2))
 
-        # HUD
+        # ========== HUD ==========
         sup_total = areas_result.get('superficie_total', 0)
         texto_area = f"Superficie: {sup_total} cm²"
         render_texto_area = fuente.render(texto_area, True, (0, 0, 0))
@@ -174,8 +189,6 @@ def run_game(
     pygame.quit()
 
 # --------------------- FUNCIONES AUX ---------------------
-import os, sys
-
 def restart_program():
     """
     Reinicia el script actual.
