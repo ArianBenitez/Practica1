@@ -1,59 +1,67 @@
-# roomba.py
 import threading
 import time
 import math
 from collections import deque
 
-WINDOW_WIDTH = 600
-WINDOW_HEIGHT = 700
-HUECO_RECT = (151, 180, 89, 260)  # (x, y, w, h) no transitable
-GRID_STEP = 10  # tamaño de celda para BFS
+WINDOW_WIDTH = 800
+WINDOW_HEIGHT = 800
+# Hueco más abajo, ancho=89, alto=160 => se puede rodear
+HUECO_RECT = (151, 380, 89, 160)
+GRID_STEP = 10
 
 class RoombaThread(threading.Thread):
-    def __init__(self, roomba_state, shared_mites, lock):
+    def __init__(self, roomba_state, shared_mites, lock, radiation_state=None):
         super().__init__()
         self.state = roomba_state
         self.shared_mites = shared_mites
         self.lock = lock
+        self.radiation_state = radiation_state
         self._stop_event = threading.Event()
+
         self.current_path = []
         self.target_mite = None
 
-        self.cleaning_started = False   # Indica si hemos empezado a limpiar
-        self.start_time = None         # Momento en que empieza a limpiar
-        self.end_time = None           # Momento en que termina (cuando no queden ácaros)
+        self.cleaning_started = False
+        self.start_time = None
+        self.end_time = None
 
     def run(self):
         while not self._stop_event.is_set():
-            # Si no hemos iniciado la limpieza y hay al menos un ácaro,
-            # marcamos el inicio (start_time)
-            if not self.cleaning_started:
-                if self.there_are_mites():
-                    self.cleaning_started = True
-                    self.start_time = time.time()
-                    print("[RoombaThread] Empieza la limpieza...")
+            # Checar game_over radiación
+            if self.radiation_state and self.radiation_state.get('game_over', False):
+                print("[RoombaThread] ¡Game Over por radiación!")
+                time.sleep(1)
+                continue
 
-            # Si no hay ácaros activos, puede que hayamos terminado
+            # Checar vidas
+            if self.state.get('vidas', 1) <= 0:
+                print("[RoombaThread] ¡El robot se quedó sin vidas! Game Over.")
+                time.sleep(1)
+                continue
+
+            # Iniciar cronómetro si hay virus
+            if not self.cleaning_started and self.there_are_mites():
+                self.cleaning_started = True
+                self.start_time = time.time()
+                print("[RoombaThread] Empieza la limpieza...")
+
+            # Si no hay virus y habíamos empezado => limpieza terminada
             if self.cleaning_started and not self.there_are_mites():
-                # Si no teníamos end_time, lo fijamos
                 if not self.end_time:
                     self.end_time = time.time()
                     total_time = self.end_time - self.start_time
                     self.state['clean_time'] = total_time
                     print(f"[RoombaThread] ¡Limpieza terminada! Tiempo total: {total_time:.2f} s")
-
-                # Ya no hay nada que hacer; podemos dormir un rato
                 time.sleep(1)
                 continue
 
-            # Lógica normal de BFS para recoger ácaros
+            # BFS
             if not self.target_mite:
                 mite = self.get_closest_mite()
                 if mite:
                     self.target_mite = mite
                     self.current_path = self.compute_path_to(mite['x'], mite['y'])
                 else:
-                    # No hay ácaros activos
                     time.sleep(1)
                     continue
 
@@ -61,25 +69,18 @@ class RoombaThread(threading.Thread):
                 nx, ny = self.current_path.pop(0)
                 self.state['x'] = nx
                 self.state['y'] = ny
-                # Comprobar si recogimos el ácaro
+
                 if self.check_mite_collected(self.target_mite):
-                    with self.lock:
-                        self.target_mite['active'] = False
-                    self.target_mite = None
-                    self.current_path = []
+                    self.handle_virus_collected(self.target_mite)
             else:
-                # No hay camino => descartar este ácaro
                 self.target_mite = None
 
-            time.sleep(0.1)  # velocidad del robot (más lento)
+            time.sleep(0.1)
 
     def stop(self):
         self._stop_event.set()
 
     def there_are_mites(self):
-        """
-        Retorna True si hay al menos un ácaro activo.
-        """
         with self.lock:
             for m in self.shared_mites:
                 if m.get('active', True):
@@ -108,6 +109,29 @@ class RoombaThread(threading.Thread):
         dist_sq = dx*dx + dy*dy
         return dist_sq < (self.state['radius'] + 3)**2
 
+    def handle_virus_collected(self, mite):
+        with self.lock:
+            mite['active'] = False
+
+        # Sumar puntuación
+        if 'score' in self.state:
+            self.state['score'] += 10
+
+        # Solo virus verdes reducen la radiación
+        if self.radiation_state and mite.get('color') == 'green':
+            self.reduce_radiation_10_percent()
+
+        # Reset
+        self.target_mite = None
+        self.current_path = []
+
+    def reduce_radiation_10_percent(self):
+        with threading.Lock():
+            rad_level = self.radiation_state.get('radiacion', 0)
+            new_level = rad_level * 0.5  # reduce 10%
+            self.radiation_state['radiacion'] = max(0, new_level)
+
+    # ================ BFS ================
     def compute_path_to(self, tx, ty):
         start = (self.snap(self.state['x']), self.snap(self.state['y']))
         goal = (self.snap(tx), self.snap(ty))
