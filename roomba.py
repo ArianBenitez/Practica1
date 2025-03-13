@@ -25,7 +25,7 @@ class RoombaThread(threading.Thread):
         self.start_time = None
         self.end_time = None
 
-        # Variables para la ruta actual y objetivo
+        # Variables para la ruta actual y el objetivo
         self.current_path = None
         self.current_target = None
         self.path_index = 0
@@ -37,28 +37,23 @@ class RoombaThread(threading.Thread):
     def run(self):
         control_mode = self.state.get('control_mode', 'auto')
         while not self._stop_event.is_set():
-            # Modo manual: no se aplica BFS
+            # Si está en modo manual, se omite la lógica de BFS
             if control_mode == 'manual':
                 time.sleep(0.1)
                 continue
 
-            # Verificar condiciones de Game Over
-            if self.radiation_state and self.radiation_state.get('game_over', False):
-                print("[RoombaThread] ¡Game Over por radiación!")
-                time.sleep(0.5)
-                continue
-            if self.state.get('vidas', 1) <= 0 or self.state.get('game_over', False):
-                print("[RoombaThread] ¡Game Over por vidas!")
-                time.sleep(0.5)
-                continue
+            # Si se detecta game over por radiación o por vidas, finalizar el hilo
+            if self.state.get('vidas', 1) <= 0 or self.state.get('game_over', False) or (self.radiation_state and self.radiation_state.get('game_over', False)):
+                print("[RoombaThread] Game Over detected, stopping thread.")
+                break
 
-            # Iniciar cronómetro si hay virus
+            # Iniciar el cronómetro si hay virus
             if not self.cleaning_started and self.there_are_mites():
                 self.cleaning_started = True
                 self.start_time = time.time()
                 print("[RoombaThread] Empieza la limpieza (automática)...")
 
-            # Si se inició y no hay virus, terminar la limpieza
+            # Si ya se inició la limpieza y no quedan virus, esperar
             if self.cleaning_started and not self.there_are_mites():
                 if not self.end_time:
                     self.end_time = time.time()
@@ -68,7 +63,7 @@ class RoombaThread(threading.Thread):
                 time.sleep(0.5)
                 continue
 
-            # Si no hay ruta actual o el objetivo dejó de estar activo, buscar un virus alcanzable
+            # Si no hay ruta actual o el objetivo dejó de estar activo, buscar virus alcanzable
             if not self.current_path or not self.current_target or not self.current_target.get('active', False):
                 target, path = self.get_reachable_mite()
                 if target is None or not path:
@@ -78,7 +73,7 @@ class RoombaThread(threading.Thread):
                 self.current_path = path
                 self.path_index = 0
 
-            # Si la ruta es demasiado corta, reiniciar para recalcular
+            # Si la ruta es demasiado corta, se reinicia la ruta
             if not self.current_path or len(self.current_path) < 2:
                 self.current_path = None
                 time.sleep(0.1)
@@ -112,7 +107,7 @@ class RoombaThread(threading.Thread):
             # Verificar colisión con el virus objetivo
             if self.check_mite_collected(self.current_target):
                 self.handle_virus_collected(self.current_target)
-                self.current_path = None  # Reiniciar para buscar otro virus
+                self.current_path = None
 
             # Verificar colisión con enemigos
             self.check_enemy_collisions()
@@ -122,10 +117,10 @@ class RoombaThread(threading.Thread):
     def stop(self):
         self._stop_event.set()
 
-    # ================== Lógica para Virus ==================
+    # ================== Lógica de Virus ==================
     def there_are_mites(self):
         with self.mites_lock:
-            # Eliminar virus inactivos para evitar acumulación
+            # Se eliminan virus inactivos para evitar acumulación
             self.shared_mites[:] = [m for m in self.shared_mites if m.get('active', True)]
             for m in self.shared_mites:
                 if m.get('active', True):
@@ -133,13 +128,8 @@ class RoombaThread(threading.Thread):
         return False
 
     def get_reachable_mite(self):
-        """
-        Itera sobre todos los virus activos y retorna el primero (o el más cercano)
-        que tenga una ruta válida (longitud >= 2) según BFS.
-        """
         reachable = []
         with self.mites_lock:
-            # Limpiar la lista eliminando virus inactivos
             self.shared_mites[:] = [m for m in self.shared_mites if m.get('active', True)]
             for m in self.shared_mites:
                 if m.get('active', True):
@@ -168,7 +158,7 @@ class RoombaThread(threading.Thread):
         if self.radiation_state and mite.get('color') == 'green':
             self.reduce_radiation_10_percent()
 
-    # ================== Lógica para Enemigos ==================
+    # ================== Lógica de Enemigos ==================
     def check_enemy_collisions(self):
         rx = self.state['x']
         ry = self.state['y']
@@ -178,7 +168,7 @@ class RoombaThread(threading.Thread):
                 if enemy.get('active', True):
                     dx = enemy['x'] - rx
                     dy = enemy['y'] - ry
-                    dist_sq = dx * dx + dy * dy
+                    dist_sq = dx ** 2 + dy ** 2
                     if dist_sq < (rrad + 10) ** 2:
                         enemy['active'] = False
                         self.state['vidas'] -= 1
@@ -209,7 +199,7 @@ class RoombaThread(threading.Thread):
                     visited.add(neighbor)
                     parent[neighbor] = current
                     queue.append(neighbor)
-        return []  # No se encontró ruta
+        return []  # Sin ruta
 
     def snap(self, val):
         return int(round(val / GRID_STEP) * GRID_STEP)
@@ -225,10 +215,7 @@ class RoombaThread(threading.Thread):
 
     def in_barrera(self, x, y, r):
         min_x, min_y, max_x, max_y = BARRERA
-        return (x - r >= min_x and
-                x + r < max_x and
-                y - r >= min_y and
-                y + r < max_y)
+        return (x - r >= min_x and x + r < max_x and y - r >= min_y and y + r < max_y)
 
     def in_hueco(self, x, y, r):
         hx, hy, hw, hh = HUECO_RECT
