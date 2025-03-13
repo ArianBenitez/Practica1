@@ -1,4 +1,3 @@
-# radiation.py
 import threading
 import time
 
@@ -8,7 +7,7 @@ class RadiationThread(threading.Thread):
         self.state_dict = state_dict
         self._stop_event = threading.Event()
 
-        self.MAX_RADIATION = 100  # Nivel máximo
+        self.MAX_RADIATION = 100
         self._lock = threading.Lock()
 
     def run(self):
@@ -17,7 +16,7 @@ class RadiationThread(threading.Thread):
             time.sleep(3)
             with self._lock:
                 rad = self.state_dict.get('radiacion', 0)
-                rad += 1  # sube 1 punto
+                rad += 1
                 if rad >= self.MAX_RADIATION:
                     rad = self.MAX_RADIATION
                     self.state_dict['game_over'] = True

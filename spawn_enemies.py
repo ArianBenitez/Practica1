@@ -2,11 +2,17 @@ import threading
 import random
 import time
 
-class MitesThread(threading.Thread):
-    def __init__(self, zonas, shared_mites, lock):
+class EnemiesThread(threading.Thread):
+    def __init__(self, zonas, shared_enemies, lock):
+        """
+        Genera enemigos rojos que dañan al robot.
+        :param zonas: dict con {'Zona 1': (ancho, alto), ...}
+        :param shared_enemies: lista compartida donde se añaden enemigos
+        :param lock: lock para sincronizar acceso
+        """
         super().__init__()
         self.zonas = zonas
-        self.shared_mites = shared_mites
+        self.shared_enemies = shared_enemies
         self.lock = lock
         self._stop_event = threading.Event()
 
@@ -19,9 +25,9 @@ class MitesThread(threading.Thread):
         }
 
     def run(self):
-        print("[MitesThread] Iniciando la dispersión de virus (blancos y verdes)...")
+        print("[EnemiesThread] Iniciando la aparición de enemigos rojos...")
         while not self._stop_event.is_set():
-            time.sleep(random.uniform(0.5, 1.5))
+            time.sleep(random.uniform(2.0, 4.0))  # cada 2-4 seg
 
             zona_key = random.choice(list(self.zonas.keys()))
             ancho, alto = self.zonas[zona_key]
@@ -30,24 +36,17 @@ class MitesThread(threading.Thread):
             x = random.randint(ox, ox + ancho - 1)
             y = random.randint(oy, oy + alto - 1)
 
-            # 20% verdes, 80% blancos
-            if random.random() < 0.2:
-                virus_color = 'green'
-            else:
-                virus_color = 'white'
-
-            virus = {
+            enemy = {
                 'x': x,
                 'y': y,
                 'active': True,
-                'color': virus_color
+                'color': 'red'
             }
 
             with self.lock:
-                self.shared_mites.append(virus)
+                self.shared_enemies.append(enemy)
 
-            color_txt = "VERDE" if virus_color == 'green' else "BLANCO"
-            print(f"[MitesThread] Nuevo virus {color_txt} en {zona_key}: ({x}, {y})")
+            print(f"[EnemiesThread] ¡Nuevo enemigo en {zona_key}: ({x}, {y})")
 
     def stop(self):
         self._stop_event.set()

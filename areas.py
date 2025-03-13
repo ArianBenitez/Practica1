@@ -1,4 +1,3 @@
-# areas.py
 import threading
 import time
 
@@ -19,7 +18,7 @@ class AreaThread(threading.Thread):
     def run(self):
         """
         Hilo que:
-          1) Calcula la superficie total de las zonas (laboratorio).
+          1) Calcula la superficie total de las zonas.
           2) Estima el tiempo de limpieza teórico (segundos y minutos).
           3) Almacena esos valores en result_dict para que otros módulos los usen.
           4) Permanece en un bucle inactivo, por si se requiere recalcular.
@@ -28,7 +27,7 @@ class AreaThread(threading.Thread):
         self.calcular_areas()
         self.estimar_tiempo_limpieza()
 
-        # Mantener vivo el hilo, por si queremos recalcular o mantener la estructura concurrente
+        # Mantener vivo el hilo
         while not self._stop_event.is_set():
             time.sleep(2)
 
@@ -45,8 +44,7 @@ class AreaThread(threading.Thread):
     def estimar_tiempo_limpieza(self):
         """
         Con la superficie total calculada, estima el tiempo en segundos y minutos,
-        asumiendo una tasa de limpieza (CLEANING_RATE) en cm²/s.
-        Guarda los resultados en result_dict.
+        asumiendo CLEANING_RATE cm²/s. Guarda en result_dict.
         """
         total_area = self.result_dict.get('superficie_total', 0)
         if total_area > 0:
@@ -61,7 +59,4 @@ class AreaThread(threading.Thread):
             print("[AreaThread] No hay zonas contaminadas que limpiar.")
 
     def stop(self):
-        """
-        Permite detener el hilo desde fuera (main.py).
-        """
         self._stop_event.set()

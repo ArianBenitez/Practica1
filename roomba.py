@@ -3,18 +3,26 @@ import time
 import math
 from collections import deque
 
-WINDOW_WIDTH = 800
+WINDOW_WIDTH = 600
 WINDOW_HEIGHT = 800
-# Hueco más abajo, ancho=89, alto=160 => se puede rodear
-HUECO_RECT = (151, 380, 89, 160)
+HUECO_RECT = (151, 280, 89, 260)
+BARRERA = (50, 130, 550, 760)
 GRID_STEP = 10
 
 class RoombaThread(threading.Thread):
-    def __init__(self, roomba_state, shared_mites, lock, radiation_state=None):
+    def __init__(
+        self,
+        roomba_state,
+        shared_mites, mites_lock,
+        shared_enemies, enemies_lock,
+        radiation_state=None
+    ):
         super().__init__()
         self.state = roomba_state
         self.shared_mites = shared_mites
-        self.lock = lock
+        self.mites_lock = mites_lock
+        self.shared_enemies = shared_enemies
+        self.enemies_lock = enemies_lock
         self.radiation_state = radiation_state
         self._stop_event = threading.Event()
 
@@ -26,14 +34,21 @@ class RoombaThread(threading.Thread):
         self.end_time = None
 
     def run(self):
+        control_mode = self.state.get('control_mode', 'auto')
+
         while not self._stop_event.is_set():
-            # Checar game_over radiación
+            # Si es manual => BFS inactivo
+            if control_mode == 'manual':
+                time.sleep(0.1)
+                continue
+
+            # Radiación game over
             if self.radiation_state and self.radiation_state.get('game_over', False):
                 print("[RoombaThread] ¡Game Over por radiación!")
                 time.sleep(1)
                 continue
 
-            # Checar vidas
+            # Vidas game over
             if self.state.get('vidas', 1) <= 0:
                 print("[RoombaThread] ¡El robot se quedó sin vidas! Game Over.")
                 time.sleep(1)
@@ -43,9 +58,9 @@ class RoombaThread(threading.Thread):
             if not self.cleaning_started and self.there_are_mites():
                 self.cleaning_started = True
                 self.start_time = time.time()
-                print("[RoombaThread] Empieza la limpieza...")
+                print("[RoombaThread] Empieza la limpieza (automática)...")
 
-            # Si no hay virus y habíamos empezado => limpieza terminada
+            # Si no hay virus => limpieza terminada
             if self.cleaning_started and not self.there_are_mites():
                 if not self.end_time:
                     self.end_time = time.time()
@@ -55,7 +70,7 @@ class RoombaThread(threading.Thread):
                 time.sleep(1)
                 continue
 
-            # BFS
+            # BFS para virus
             if not self.target_mite:
                 mite = self.get_closest_mite()
                 if mite:
@@ -70,8 +85,13 @@ class RoombaThread(threading.Thread):
                 self.state['x'] = nx
                 self.state['y'] = ny
 
+                # Checar colisión con el virus
                 if self.check_mite_collected(self.target_mite):
                     self.handle_virus_collected(self.target_mite)
+
+                # Checar colisión con enemigos => quitan 1 vida
+                self.check_enemy_collisions()
+
             else:
                 self.target_mite = None
 
@@ -80,8 +100,9 @@ class RoombaThread(threading.Thread):
     def stop(self):
         self._stop_event.set()
 
+    # =========== Virus Lógica ===========
     def there_are_mites(self):
-        with self.lock:
+        with self.mites_lock:
             for m in self.shared_mites:
                 if m.get('active', True):
                     return True
@@ -91,7 +112,7 @@ class RoombaThread(threading.Thread):
         rx, ry = self.state['x'], self.state['y']
         closest = None
         min_dist = float('inf')
-        with self.lock:
+        with self.mites_lock:
             for m in self.shared_mites:
                 if m.get('active', True):
                     dx = m['x'] - rx
@@ -106,32 +127,58 @@ class RoombaThread(threading.Thread):
         rx, ry = self.state['x'], self.state['y']
         dx = mite['x'] - rx
         dy = mite['y'] - ry
-        dist_sq = dx*dx + dy*dy
+        dist_sq = dx**2 + dy**2
         return dist_sq < (self.state['radius'] + 3)**2
 
     def handle_virus_collected(self, mite):
-        with self.lock:
+        with self.mites_lock:
             mite['active'] = False
 
         # Sumar puntuación
         if 'score' in self.state:
             self.state['score'] += 10
 
-        # Solo virus verdes reducen la radiación
+        # Si es verde => reduce radiación
         if self.radiation_state and mite.get('color') == 'green':
             self.reduce_radiation_10_percent()
 
-        # Reset
         self.target_mite = None
         self.current_path = []
 
-    def reduce_radiation_10_percent(self):
-        with threading.Lock():
-            rad_level = self.radiation_state.get('radiacion', 0)
-            new_level = rad_level * 0.5  # reduce 10%
-            self.radiation_state['radiacion'] = max(0, new_level)
+    # =========== Enemigos Lógica ===========
+    def check_enemy_collisions(self):
+        """
+        Checa si el robot colisiona con algún enemigo.
+        Si colisiona => quita 1 vida y desactiva el enemigo.
+        """
+        rx = self.state['x']
+        ry = self.state['y']
+        rrad = self.state['radius']
 
-    # ================ BFS ================
+        with self.enemies_lock:
+            for enemy in self.shared_enemies:
+                if enemy.get('active', True):
+                    dx = enemy['x'] - rx
+                    dy = enemy['y'] - ry
+                    dist_sq = dx**2 + dy**2
+                    if dist_sq < (rrad + 10)**2:
+                        # Colisión => resta 1 vida
+                        enemy['active'] = False
+                        self.state['vidas'] -= 1
+                        print("[RoombaThread] ¡Colisión con enemigo! Vidas restantes:", self.state['vidas'])
+                        if self.state['vidas'] <= 0:
+                            self.state['vidas'] = 0
+                            # Marcamos game_over
+                            self.state['game_over'] = True
+                            print("[RoombaThread] ¡El robot se quedó sin vidas! Game Over.")
+
+    # =========== Radiación ===========
+    def reduce_radiation_10_percent(self):
+        rad_level = self.radiation_state.get('radiacion', 0)
+        new_level = rad_level * 0.9
+        self.radiation_state['radiacion'] = max(0, new_level)
+
+    # =========== BFS ===========
     def compute_path_to(self, tx, ty):
         start = (self.snap(self.state['x']), self.snap(self.state['y']))
         goal = (self.snap(tx), self.snap(ty))
@@ -161,10 +208,16 @@ class RoombaThread(threading.Thread):
         for dx, dy in [(GRID_STEP,0), (-GRID_STEP,0), (0,GRID_STEP), (0,-GRID_STEP)]:
             nx = cx + dx
             ny = cy + dy
-            if 0 <= nx < WINDOW_WIDTH and 0 <= ny < WINDOW_HEIGHT:
-                if not self.in_hueco(nx, ny, self.state['radius']):
-                    neighbors.append((nx, ny))
+            if self.in_barrera(nx, ny, self.state['radius']) and not self.in_hueco(nx, ny, self.state['radius']):
+                neighbors.append((nx, ny))
         return neighbors
+
+    def in_barrera(self, x, y, r):
+        min_x, min_y, max_x, max_y = BARRERA
+        return (x - r >= min_x and
+                x + r <  max_x and
+                y - r >= min_y and
+                y + r <  max_y)
 
     def in_hueco(self, x, y, r):
         hx, hy, hw, hh = HUECO_RECT
