@@ -4,7 +4,7 @@ import os, sys
 WINDOW_WIDTH = 600
 WINDOW_HEIGHT = 800
 
-# Dimensiones y posición del hueco
+# Dimensiones y posición del hueco radiactivo
 HUECO_RECT = (151, 280, 89, 260)
 # Barrera que engloba las zonas
 BARRERA = (50, 130, 550, 760)
@@ -17,6 +17,14 @@ def run_game(
     shared_enemies, enemies_lock,
     radiation_state=None
 ):
+    """
+    Bucle principal de Pygame:
+    - Dibuja el 'Laboratorio de Virus' con sus zonas.
+    - Muestra el hueco radiactivo con una imagen de espacio.
+    - Representa al nanobot y a los enemigos con sprites.
+    - Control manual (flechas) o automático (BFS) en roomba.py.
+    - Pantalla de Game Over y botón para reiniciar.
+    """
     pygame.init()
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption("Laboratorio de Virus - Limpieza en Progreso")
@@ -25,21 +33,18 @@ def run_game(
     fuente = pygame.font.SysFont(None, 24)
 
     # ========== CARGA DE SPRITES ==========
-    # 1) Robot
+    # Robot
     robot_sprite = pygame.image.load("GreenRobotSprite.png").convert_alpha()
     robot_sprite = pygame.transform.scale(robot_sprite, (100, 64))
 
-    # 2) Hueco (espacio)
+    # Hueco (espacio)
     hueco_image = pygame.image.load("Space1.png").convert_alpha()
     hueco_image = pygame.transform.scale(hueco_image, (HUECO_RECT[2], HUECO_RECT[3]))  
-    # (width=89, height=260) => se ajusta exactamente al hueco
 
-    # 3) Enemigos (virus rojos que quitan vidas)
+    # Enemigos (virus rojos)
     enemy_sprite = pygame.image.load("VirusRojo.png").convert_alpha()
     enemy_sprite = pygame.transform.scale(enemy_sprite, (48, 48))  
-    # Ajusta si quieres otro tamaño
 
-    # Offsets de cada zona
     zona_offsets = {
         'Zona 1': (50, 130),
         'Zona 2': (50, 280),
@@ -57,21 +62,19 @@ def run_game(
             if event.type == pygame.QUIT:
                 running = False
 
-            # Si estamos en Game Over, revisar si clic en el botón
+            # Si estamos en Game Over, checar clic en botón Reiniciar
             if roomba_state.get('game_over', False):
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_x, mouse_y = event.pos
-                    # Botón (x=190..390, y=400..450)
                     if 190 <= mouse_x <= 390 and 400 <= mouse_y <= 450:
                         restart_program()
 
-        # Si game_over => pantalla de Game Over
+        # Pantalla de Game Over si sin vidas
         if roomba_state.get('game_over', False) or roomba_state['vidas'] <= 0:
             screen.fill((211, 211, 211))  # gris claro
             game_over_text = fuente.render("¡GAME OVER! Te has quedado sin vidas.", True, (255, 0, 0))
             screen.blit(game_over_text, (150, 300))
 
-            # Botón "Reiniciar"
             boton_rect = pygame.Rect(190, 400, 200, 50)
             pygame.draw.rect(screen, (0, 0, 255), boton_rect)
             texto_btn = fuente.render("Reiniciar", True, (255, 255, 255))
@@ -103,23 +106,23 @@ def run_game(
                     roomba_state['x'] = new_x
                     roomba_state['y'] = new_y
 
-            # Colisiones con virus y enemigos
+            # Colisiones en modo manual
             check_virus_collisions(roomba_state, shared_mites, mites_lock, radiation_state)
             check_enemy_collisions(roomba_state, shared_enemies, enemies_lock)
 
         # ========== DIBUJAR ESCENA ==========
         screen.fill((211, 211, 211))  # Gris claro
 
-        # Zonas (rectángulos)
+        # Zonas
         for nombre_zona, (ancho, alto) in zonas.items():
             ox, oy = zona_offsets[nombre_zona]
             pygame.draw.rect(screen, (100, 100, 200), (ox, oy, ancho, alto), width=2)
 
-        # Hueco => imagen "Space.png"
+        # Hueco => Space.png
         hx, hy, hw, hh = HUECO_RECT
         screen.blit(hueco_image, (hx, hy))
 
-        # Robot => "GreenRobotSprite.png"
+        # Robot => GreenRobotSprite.png
         rx = roomba_state.get('x', 0)
         ry = roomba_state.get('y', 0)
         sprite_w = robot_sprite.get_width()
@@ -127,14 +130,14 @@ def run_game(
         robot_pos = (rx - sprite_w//2, ry - sprite_h//2)
         screen.blit(robot_sprite, robot_pos)
 
-        # Virus (motas blancas / verdes)
+        # Virus (motas)
         with mites_lock:
             for virus in shared_mites:
                 if virus.get('active', True):
-                    color = (0,255,0) if virus.get('color') == 'green' else (255,255,255)
+                    color = (0,200,0) if virus.get('color') == 'green' else (0,0,255)
                     pygame.draw.circle(screen, color, (virus['x'], virus['y']), 3)
 
-        # Enemigos => "VirusRojo.png"
+        # Enemigos => VirusRojo.png
         with enemies_lock:
             for enemy in shared_enemies:
                 if enemy.get('active', True):
@@ -191,11 +194,15 @@ def run_game(
 # --------------------- FUNCIONES AUX ---------------------
 def restart_program():
     """
-    Reinicia el script actual.
+    Permite reiniciar todo el juego al hacer clic en 'Reiniciar'.
     """
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
 def in_barrera(x, y, r):
+    """
+    Verifica si (x,y) con radio r está dentro de la barrera 
+    que engloba las zonas del laboratorio.
+    """
     min_x, min_y, max_x, max_y = BARRERA
     return (x - r >= min_x and
             x + r <  max_x and
@@ -203,6 +210,9 @@ def in_barrera(x, y, r):
             y + r <  max_y)
 
 def in_hueco(x, y, r):
+    """
+    Checa si (x,y) con radio r colisiona con el hueco radiactivo central.
+    """
     hx, hy, hw, hh = HUECO_RECT
     closest_x = max(hx, min(x, hx+hw))
     closest_y = max(hy, min(y, hy+hh))
@@ -212,6 +222,10 @@ def in_hueco(x, y, r):
     return dist_sq < (r*r)
 
 def check_virus_collisions(roomba_state, shared_mites, lock, radiation_state):
+    """
+    Si el robot está cerca de un virus (blanco o verde), lo absorbe. 
+    Si es verde, reduce radiación.
+    """
     rx = roomba_state['x']
     ry = roomba_state['y']
     rradius = roomba_state['radius']
@@ -231,7 +245,7 @@ def check_virus_collisions(roomba_state, shared_mites, lock, radiation_state):
 
 def check_enemy_collisions(roomba_state, shared_enemies, lock):
     """
-    Resta 1 vida si colisiona con enemigo.
+    Resta 1 vida si el robot colisiona con un enemigo rojo.
     """
     rx = roomba_state['x']
     ry = roomba_state['y']
@@ -253,6 +267,10 @@ def check_enemy_collisions(roomba_state, shared_enemies, lock):
                         print("[Game] El robot se quedó sin vidas. Game Over.")
 
 def reduce_radiation_10_percent(radiation_state):
+    """
+    Reduce en un 10% la radiación total, 
+    como si el virus verde generara un 'antídoto' temporal.
+    """
     rad_level = radiation_state.get('radiacion', 0)
     new_level = rad_level * 0.9
     radiation_state['radiacion'] = max(0, new_level)

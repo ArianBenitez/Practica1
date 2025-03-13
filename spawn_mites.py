@@ -3,6 +3,11 @@ import random
 import time
 
 class MitesThread(threading.Thread):
+    """
+    Hilo que genera 'virus' blancos o verdes en distintas zonas.
+    - Blancos no reducen radiación.
+    - Verdes (20% de prob.) reducen radiación al ser recogidos por el nanobot.
+    """
     def __init__(self, zonas, shared_mites, lock):
         super().__init__()
         self.zonas = zonas
@@ -19,6 +24,11 @@ class MitesThread(threading.Thread):
         }
 
     def run(self):
+        """
+        Dispersa virus de manera concurrente.
+        Representa la contaminación que aparece constantemente 
+        en el Laboratorio de Virus.
+        """
         print("[MitesThread] Iniciando la dispersión de virus (blancos y verdes)...")
         while not self._stop_event.is_set():
             time.sleep(random.uniform(0.5, 1.5))
@@ -50,4 +60,7 @@ class MitesThread(threading.Thread):
             print(f"[MitesThread] Nuevo virus {color_txt} en {zona_key}: ({x}, {y})")
 
     def stop(self):
+        """
+        Detiene este hilo que genera virus.
+        """
         self._stop_event.set()

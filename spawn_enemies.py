@@ -3,13 +3,11 @@ import random
 import time
 
 class EnemiesThread(threading.Thread):
+    """
+    Hilo que genera enemigos rojos que dañan al nanobot restando 1 vida 
+    cada vez que colisiona con ellos.
+    """
     def __init__(self, zonas, shared_enemies, lock):
-        """
-        Genera enemigos rojos que dañan al robot.
-        :param zonas: dict con {'Zona 1': (ancho, alto), ...}
-        :param shared_enemies: lista compartida donde se añaden enemigos
-        :param lock: lock para sincronizar acceso
-        """
         super().__init__()
         self.zonas = zonas
         self.shared_enemies = shared_enemies
@@ -25,6 +23,10 @@ class EnemiesThread(threading.Thread):
         }
 
     def run(self):
+        """
+        Cada 2-4 segundos aparece un enemigo (virus rojo) en alguna zona.
+        El robot perderá 1 vida si choca con él.
+        """
         print("[EnemiesThread] Iniciando la aparición de enemigos rojos...")
         while not self._stop_event.is_set():
             time.sleep(random.uniform(2.0, 4.0))  # cada 2-4 seg
@@ -49,4 +51,7 @@ class EnemiesThread(threading.Thread):
             print(f"[EnemiesThread] ¡Nuevo enemigo en {zona_key}: ({x}, {y})")
 
     def stop(self):
+        """
+        Detiene este hilo de generación de enemigos.
+        """
         self._stop_event.set()

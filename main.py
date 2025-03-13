@@ -8,22 +8,22 @@ import radiation
 
 def main():
     """
-    Lanza hilos para:
-      - Cálculo de áreas (AreaThread)
-      - Robot (RoombaThread) con BFS o manual
-      - Virus (MitesThread)
-      - Enemigos (EnemiesThread)
-      - Radiación (RadiationThread)
-    Y corre el juego en el hilo principal.
-    """
+    Función principal que lanza los hilos y el juego. 
 
+    Historia:
+    En este 'Laboratorio de Virus', el nanobot (robot aspirador) 
+    deberá desinfectar las zonas, mientras que la radiación sube 
+    lentamente y los enemigos (virus rojos) intentan dañarlo. 
+    El usuario puede elegir controlar manualmente al robot 
+    o dejarlo actuar automáticamente con BFS.
+    """
     modo = input("¿Deseas control manual (M) o automático (A)? [M/A]: ").strip().lower()
     if modo == 'm':
         control_mode = 'manual'
     else:
         control_mode = 'auto'
 
-    # Zonas
+    # Zonas del laboratorio
     zonas = {
         'Zona 1': (500, 150),
         'Zona 2': (101, 480),
@@ -31,9 +31,10 @@ def main():
         'Zona 4': (90, 220)
     }
 
+    # Diccionario para almacenar resultados de áreas y tiempos
     areas_result = {}
 
-    # Robot
+    # Estado del robot (nanobot), incluyendo sus vidas y modo de control
     roomba_state = {
         'x': 200,
         'y': 180,
@@ -46,17 +47,20 @@ def main():
         'game_over': False
     }
 
+    # Estado de la radiación en el laboratorio
     radiation_state = {
         'radiacion': 0,
         'game_over': False
     }
 
+    # Listas compartidas (virus blancos/verdes y enemigos rojos)
     shared_mites = []
     shared_mites_lock = threading.Lock()
 
     shared_enemies = []
     shared_enemies_lock = threading.Lock()
 
+    # Hilos concurrentes
     area_thread = areas.AreaThread(zonas, areas_result)
     roomba_thread = roomba.RoombaThread(
         roomba_state,
@@ -68,12 +72,14 @@ def main():
     enemies_thread = spawn_enemies.EnemiesThread(zonas, shared_enemies, shared_enemies_lock)
     radiation_thread = radiation.RadiationThread(radiation_state)
 
+    # Iniciar hilos
     area_thread.start()
     roomba_thread.start()
     mites_thread.start()
     enemies_thread.start()
     radiation_thread.start()
 
+    # Correr el juego en el hilo principal (interfaz Pygame)
     game.run_game(
         zonas,
         areas_result,
@@ -83,6 +89,7 @@ def main():
         radiation_state
     )
 
+    # Detener hilos al salir
     area_thread.stop()
     roomba_thread.stop()
     mites_thread.stop()
