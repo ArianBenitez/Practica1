@@ -8,14 +8,13 @@ import radiation
 
 def main():
     """
-    Pregunta al usuario si desea control manual (M) o automático (A).
-    Lanza hilos:
-      - Área (AreaThread)
-      - Robot (RoombaThread)
+    Lanza hilos para:
+      - Cálculo de áreas (AreaThread)
+      - Robot (RoombaThread) con BFS o manual
       - Virus (MitesThread)
       - Enemigos (EnemiesThread)
       - Radiación (RadiationThread)
-    Y corre el juego en el hilo principal (game.run_game).
+    Y corre el juego en el hilo principal.
     """
 
     modo = input("¿Deseas control manual (M) o automático (A)? [M/A]: ").strip().lower()
@@ -24,6 +23,7 @@ def main():
     else:
         control_mode = 'auto'
 
+    # Zonas
     zonas = {
         'Zona 1': (500, 150),
         'Zona 2': (101, 480),
@@ -33,7 +33,7 @@ def main():
 
     areas_result = {}
 
-    # Robot dentro de Zona 1
+    # Robot
     roomba_state = {
         'x': 200,
         'y': 180,
@@ -42,20 +42,18 @@ def main():
         'clean_time': None,
         'vidas': 3,
         'score': 0,
-        'control_mode': control_mode
+        'control_mode': control_mode,
+        'game_over': False
     }
 
-    # Radiación
     radiation_state = {
         'radiacion': 0,
         'game_over': False
     }
 
-    # Virus
     shared_mites = []
     shared_mites_lock = threading.Lock()
 
-    # Enemigos
     shared_enemies = []
     shared_enemies_lock = threading.Lock()
 
@@ -70,14 +68,12 @@ def main():
     enemies_thread = spawn_enemies.EnemiesThread(zonas, shared_enemies, shared_enemies_lock)
     radiation_thread = radiation.RadiationThread(radiation_state)
 
-    # Iniciar hilos
     area_thread.start()
     roomba_thread.start()
     mites_thread.start()
     enemies_thread.start()
     radiation_thread.start()
 
-    # Correr juego
     game.run_game(
         zonas,
         areas_result,
@@ -87,7 +83,6 @@ def main():
         radiation_state
     )
 
-    # Parar hilos
     area_thread.stop()
     roomba_thread.stop()
     mites_thread.stop()
@@ -100,7 +95,7 @@ def main():
     enemies_thread.join()
     radiation_thread.join()
 
-    print("Todos los hilos finalizados. Saliendo...")
+    print("Todos los hilos han finalizado. Saliendo...")
 
 if __name__ == "__main__":
     main()
