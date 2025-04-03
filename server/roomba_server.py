@@ -1,195 +1,119 @@
+# server/roomba_server.py
 import threading
 import time
 import math
 from collections import deque
 
+# Ajustar a tus valores originales
 WINDOW_WIDTH = 600
 WINDOW_HEIGHT = 800
-
 HUECO_RECT = (151, 280, 89, 260)
 BARRERA = (50, 130, 550, 760)
 GRID_STEP = 10
 
 class RoombaThread(threading.Thread):
-    def __init__(self, roomba_state, shared_mites, mites_lock, shared_enemies, enemies_lock, radiation_state=None):
+    def __init__(self, game_state):
         super().__init__()
-        self.state = roomba_state
-        self.shared_mites = shared_mites
-        self.mites_lock = mites_lock
-        self.shared_enemies = shared_enemies
-        self.enemies_lock = enemies_lock
-        self.radiation_state = radiation_state
+        self.game_state = game_state
         self._stop_event = threading.Event()
 
-        self.cleaning_started = False
-        self.start_time = None
-        self.end_time = None
-
-        # Variables para la ruta actual y el objetivo
+        # Para ruta BFS
         self.current_path = None
         self.current_target = None
         self.path_index = 0
 
-        # Variables para detectar si el robot se queda atascado
+        # Para detectar atascos
         self.stuck_counter = 0
-        self.last_position = (self.state['x'], self.state['y'])
+        with self.game_state.lock:
+            self.last_position = (self.game_state.state['x'], self.game_state.state['y'])
+
+        # Tiempos de limpieza
+        self.cleaning_started = False
+        self.start_time = None
+        self.end_time = None
 
     def run(self):
-        control_mode = self.state.get('control_mode', 'auto')
+        print("[RoombaThread] Iniciando hilo del robot...")
         while not self._stop_event.is_set():
-            # Si está en modo manual, se omite la lógica de BFS
-            if control_mode == 'manual':
-                time.sleep(0.1)
-                continue
+            with self.game_state.lock:
+                # Si game_over o vidas <= 0, salimos
+                if (self.game_state.state['vidas'] <= 0 or
+                    self.game_state.state['game_over']):
+                    break
 
-            # Si se detecta game over por radiación o por vidas, finalizar el hilo
-            if self.state.get('vidas', 1) <= 0 or self.state.get('game_over', False) or (self.radiation_state and self.radiation_state.get('game_over', False)):
-                print("[RoombaThread] Game Over detected, stopping thread.")
-                break
+                mode = self.game_state.state['control_mode']
 
-            # Iniciar el cronómetro si hay virus
-            if not self.cleaning_started and self.there_are_mites():
-                self.cleaning_started = True
-                self.start_time = time.time()
-                print("[RoombaThread] Empieza la limpieza (automática)...")
-
-            # Si ya se inició la limpieza y no quedan virus, esperar
-            if self.cleaning_started and not self.there_are_mites():
-                if not self.end_time:
-                    self.end_time = time.time()
-                    total_time = self.end_time - self.start_time
-                    self.state['clean_time'] = total_time
-                    print(f"[RoombaThread] ¡Limpieza terminada! Tiempo total: {total_time:.2f} s")
-                time.sleep(0.5)
-                continue
-
-            # Si no hay ruta actual o el objetivo dejó de estar activo, buscar virus alcanzable
-            if not self.current_path or not self.current_target or not self.current_target.get('active', False):
-                target, path = self.get_reachable_mite()
-                if target is None or not path:
-                    time.sleep(0.1)
-                    continue
-                self.current_target = target
-                self.current_path = path
-                self.path_index = 0
-
-            # Si la ruta es demasiado corta, se reinicia la ruta
-            if not self.current_path or len(self.current_path) < 2:
-                self.current_path = None
-                time.sleep(0.1)
-                continue
-
-            # Avanzar un paso en la ruta calculada
-            self.path_index += 1
-            if self.path_index >= len(self.current_path):
-                self.current_path = None
-                continue
-
-            next_x, next_y = self.current_path[self.path_index]
-            self.state['x'] = next_x
-            self.state['y'] = next_y
-
-            # Detectar si el robot se queda atascado
-            current_position = (self.state['x'], self.state['y'])
-            if current_position == self.last_position:
-                self.stuck_counter += 1
+            if mode == 'auto':
+                self.automatic_logic()
             else:
-                self.stuck_counter = 0
-            self.last_position = current_position
-
-            if self.stuck_counter >= 3:
-                print("[RoombaThread] Robot atascado, recalculando ruta...")
-                self.current_path = None
-                self.stuck_counter = 0
+                # Modo manual: el movimiento lo hace move_robot_manual()
+                # Sólo revisamos colisiones cada cierto tiempo
+                self.check_collisions()
                 time.sleep(0.1)
-                continue
 
-            # Verificar colisión con el virus objetivo
-            if self.check_mite_collected(self.current_target):
-                self.handle_virus_collected(self.current_target)
-                self.current_path = None
-
-            # Verificar colisión con enemigos
-            self.check_enemy_collisions()
-
-            time.sleep(0.1)
+        print("[RoombaThread] Finalizado.")
 
     def stop(self):
         self._stop_event.set()
 
-    # ================== Lógica de Virus ==================
-    def there_are_mites(self):
-        with self.mites_lock:
-            # Se eliminan virus inactivos para evitar acumulación
-            self.shared_mites[:] = [m for m in self.shared_mites if m.get('active', True)]
-            for m in self.shared_mites:
-                if m.get('active', True):
-                    return True
-        return False
+    def automatic_logic(self):
+        """
+        BFS para buscar el virus más cercano, avanzar hacia él, etc.
+        """
+        self.check_collisions()
+        # Si no hay ruta o el target se desactivó, buscar nuevo
+        if not self.current_path or not self.current_target or not self.current_target.get('active', True):
+            target, path = self.get_reachable_mite()
+            if target and path:
+                self.current_target = target
+                self.current_path = path
+                self.path_index = 0
 
+        # Avanzar un paso en la ruta
+        if self.current_path:
+            self.path_index += 1
+            if self.path_index < len(self.current_path):
+                nx, ny = self.current_path[self.path_index]
+                with self.game_state.lock:
+                    self.game_state.state['x'] = nx
+                    self.game_state.state['y'] = ny
+                self.check_collisions()
+            else:
+                self.current_path = None
+
+        time.sleep(0.1)
+
+    # -----------------------------
+    # LÓGICA DE BÚSQUEDA DE VIRUS
+    # -----------------------------
     def get_reachable_mite(self):
-        reachable = []
-        with self.mites_lock:
-            self.shared_mites[:] = [m for m in self.shared_mites if m.get('active', True)]
-            for m in self.shared_mites:
-                if m.get('active', True):
-                    path = self.compute_path_to(m['x'], m['y'])
-                    if path and len(path) >= 2:
-                        dist = math.hypot(m['x'] - self.state['x'], m['y'] - self.state['y'])
-                        reachable.append((dist, m, path))
-        if reachable:
-            reachable.sort(key=lambda x: x[0])
-            return reachable[0][1], reachable[0][2]
-        return None, None
+        with self.game_state.lock:
+            mites = [m for m in self.game_state.shared_mites if m.get('active', True)]
+            if not mites:
+                return None, None
+            # Tomar el más cercano
+            rx, ry = self.game_state.state['x'], self.game_state.state['y']
+            best_dist = float('inf')
+            best_mite = None
+            best_path = []
+            for m in mites:
+                dist = math.hypot(m['x'] - rx, m['y'] - ry)
+                path = self.compute_path_to(m['x'], m['y'])
+                if path and len(path) > 1 and dist < best_dist:
+                    best_dist = dist
+                    best_mite = m
+                    best_path = path
+        return best_mite, best_path
 
-    def check_mite_collected(self, mite):
-        rx, ry = self.state['x'], self.state['y']
-        dx = mite['x'] - rx
-        dy = mite['y'] - ry
-        dist_sq = dx * dx + dy * dy
-        return dist_sq < (self.state['radius'] + 3) ** 2
-
-    def handle_virus_collected(self, mite):
-        with self.mites_lock:
-            if mite in self.shared_mites:
-                self.shared_mites.remove(mite)
-        if 'score' in self.state:
-            self.state['score'] += 10
-        if self.radiation_state and mite.get('color') == 'green':
-            self.reduce_radiation_10_percent()
-
-    # ================== Lógica de Enemigos ==================
-    def check_enemy_collisions(self):
-        rx = self.state['x']
-        ry = self.state['y']
-        rrad = self.state['radius']
-        with self.enemies_lock:
-            for enemy in self.shared_enemies:
-                if enemy.get('active', True):
-                    dx = enemy['x'] - rx
-                    dy = enemy['y'] - ry
-                    dist_sq = dx ** 2 + dy ** 2
-                    if dist_sq < (rrad + 10) ** 2:
-                        enemy['active'] = False
-                        self.state['vidas'] -= 1
-                        print("[RoombaThread] ¡Colisión con enemigo! Vidas restantes:", self.state['vidas'])
-                        if self.state['vidas'] <= 0:
-                            self.state['vidas'] = 0
-                            self.state['game_over'] = True
-                            print("[RoombaThread] El robot se quedó sin vidas. Game Over.")
-
-    def reduce_radiation_10_percent(self):
-        rad_level = self.radiation_state.get('radiacion', 0)
-        new_level = rad_level * 0.9
-        self.radiation_state['radiacion'] = max(0, new_level)
-
-    # ================== BFS ==================
     def compute_path_to(self, tx, ty):
-        start = (self.snap(self.state['x']), self.snap(self.state['y']))
+        with self.game_state.lock:
+            start = (self.snap(self.game_state.state['x']), self.snap(self.game_state.state['y']))
         goal = (self.snap(tx), self.snap(ty))
+
         queue = deque([start])
         visited = set([start])
         parent = {}
+
         while queue:
             current = queue.popleft()
             if current == goal:
@@ -199,7 +123,7 @@ class RoombaThread(threading.Thread):
                     visited.add(neighbor)
                     parent[neighbor] = current
                     queue.append(neighbor)
-        return []  # Sin ruta
+        return []
 
     def snap(self, val):
         return int(round(val / GRID_STEP) * GRID_STEP)
@@ -209,22 +133,21 @@ class RoombaThread(threading.Thread):
         for dx, dy in [(GRID_STEP, 0), (-GRID_STEP, 0), (0, GRID_STEP), (0, -GRID_STEP)]:
             nx = cx + dx
             ny = cy + dy
-            if self.in_barrera(nx, ny, self.state['radius']) and not self.in_hueco(nx, ny, self.state['radius']):
+            if self.in_barrera(nx, ny, 10) and not self.in_hueco(nx, ny, 10):
                 neighbors.append((nx, ny))
         return neighbors
 
     def in_barrera(self, x, y, r):
         min_x, min_y, max_x, max_y = BARRERA
-        return (x - r >= min_x and x + r < max_x and y - r >= min_y and y + r < max_y)
+        return (x - r >= min_x and x + r < max_x and
+                y - r >= min_y and y + r < max_y)
 
     def in_hueco(self, x, y, r):
         hx, hy, hw, hh = HUECO_RECT
-        closest_x = max(hx, min(x, hx + hw))
-        closest_y = max(hy, min(y, hy + hh))
-        dist_x = x - closest_x
-        dist_y = y - closest_y
-        dist_sq = dist_x ** 2 + dist_y ** 2
-        return dist_sq < (r * r)
+        closest_x = max(hx, min(x, hx+hw))
+        closest_y = max(hy, min(y, hy+hh))
+        dist_sq = (x - closest_x)**2 + (y - closest_y)**2
+        return dist_sq < (r*r)
 
     def build_path(self, parent, start, goal):
         path = []
@@ -235,3 +158,35 @@ class RoombaThread(threading.Thread):
         path.append(start)
         path.reverse()
         return path
+
+    # -----------------------------
+    # COLISIONES
+    # -----------------------------
+    def check_collisions(self):
+        with self.game_state.lock:
+            rx, ry = self.game_state.state['x'], self.game_state.state['y']
+            rradius = self.game_state.state['radius']
+
+            # Virus
+            for mite in self.game_state.shared_mites:
+                if mite.get('active', True):
+                    dx = mite['x'] - rx
+                    dy = mite['y'] - ry
+                    if (dx*dx + dy*dy) < (rradius + 3)**2:
+                        mite['active'] = False
+                        self.game_state.state['score'] += 10
+                        # Si es verde, reduce radiación
+                        if mite.get('color') == 'green':
+                            self.game_state.state['radiacion'] *= 0.9
+
+            # Enemigos
+            for enemy in self.game_state.shared_enemies:
+                if enemy.get('active', True):
+                    dx = enemy['x'] - rx
+                    dy = enemy['y'] - ry
+                    if (dx*dx + dy*dy) < (rradius + 10)**2:
+                        enemy['active'] = False
+                        self.game_state.state['vidas'] -= 1
+                        if self.game_state.state['vidas'] <= 0:
+                            self.game_state.state['vidas'] = 0
+                            self.game_state.state['game_over'] = True
